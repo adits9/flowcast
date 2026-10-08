@@ -1,0 +1,56 @@
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://flowcast:flowcast-local@postgres:5432/flowcast
+      REDIS_URL: redis://redis:6379/0
+      DEMO_MODE: ${DEMO_MODE:-true}
+      SENSOR_API_KEY: ${SENSOR_API_KEY:-}
+      CAMPUS_NAME: ${CAMPUS_NAME:-Northwood University}
+      CAMPUS_TIMEZONE: ${CAMPUS_TIMEZONE:-America/Chicago}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8000,http://127.0.0.1:8000}
+    volumes:
+      - models:/app/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 20s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+    restart: unless-stopped
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: flowcast
+      POSTGRES_PASSWORD: flowcast-local
+      POSTGRES_DB: flowcast
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flowcast -d flowcast"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+volumes:
+  postgres_data:
+  redis_data:
+  models:
